@@ -37,20 +37,15 @@ jobs:
       - name: 配置并编译 APK
         run: |
           cd sdk
-
-          # Populate feeds so package Makefiles like feeds/luci/luci.mk exist
-          # scripts/feeds is part of the SDK and will fetch the feeds repository files.
+          # 1. 强制初始化 feeds，确保安装 luci 组件库
           ./scripts/feeds update -a
+          # 这一步至关重要，它会把 luci.mk 等编译必需的支撑文件下载到 sdk/feeds/luci/ 下
           ./scripts/feeds install -a
-
-          # Generate configuration
+          
+          # 2. 生成配置
           make defconfig
-
-          # Debug: verify luci feed file now exists
-          ls -l feeds/luci/luci.mk || true
-          ls -l package/luci-app-lan-wake/Makefile
-
-          # Build the package
+          
+          # 3. 执行编译
           make package/luci-app-lan-wake/compile V=s
           
       - name: 收集 APK 文件
