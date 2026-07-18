@@ -1,53 +1,54 @@
-name: Build LAN-Wake APK
+name: 云编译 LAN-Wake APK (IPQ60xx)
 
 on:
   workflow_dispatch:
-    inputs:
-      sdk_url:
-        description: 'OpenWrt SDK 下载链接 (请根据你的路由器架构替换)'
-        required: true
-        default: 'https://downloads.openwrt.org/snapshots/targets/qualcommax/ipq60xx/openwrt-sdk-qualcommax-ipq60xx_gcc-14.4.0_musl.Linux-x86_64.tar.zst'
 
 jobs:
   build:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: 准备编译环境
-      run: |
-        sudo apt update
-        # 新增了 zstd 依赖，以支持最新的 .zst 格式压缩包
-        sudo apt install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget zstd
+      - name: 准备编译环境
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev file wget curl zstd
 
-    - name: 下载并解压 OpenWrt SDK
-      run: |
-        # 移除了写死的 .tar.xz 后缀
-        wget -O sdk_archive ${{ github.event.inputs.sdk_url }}
-        mkdir sdk
-        # 去掉了 -J 参数，让系统自动识别压缩格式（无论是 xz 还是 zst 都能解压）
-        tar -xf sdk_archive -C sdk --strip-components=1
-        
-    - name: 获取 LAN-Wake 源码
-      run: |
-        cd sdk/package
-        git clone https://github.com/adminchenyu/LAN-Wake.git
+      - name: 下载指定平台 SDK
+        run: |
+          # 使用您提供的特定 SDK 地址
+          SDK_URL="https://downloads.openwrt.org/snapshots/targets/qualcommax/ipq60xx/openwrt-sdk-qualcommax-ipq60xx_gcc-14.4.0_musl.Linux-x86_64.tar.zst"
+          wget "$SDK_URL"
+          
+          # 解压 .tar.zst 文件
+          tar -I zstd -xf openwrt-sdk-*.tar.zst
+          
+          # 重命名 SDK 目录，方便后续操作
+          mv openwrt-sdk-* sdk
 
-    - name: 更新及安装 Feeds
-      run: |
-        cd sdk
-        ./scripts/feeds update -a
-        ./scripts/feeds install -a
+      - name: 拉取 LAN-Wake 源码
+        run: |
+          cd sdk
+          # 添加自定义源
+          echo "src-git lanwake https://github.com/adminchenyu/LAN-Wake.git" >> feeds.conf.default
+          ./scripts/feeds update lanwake
+          ./scripts/feeds install -a -p lanwake
 
-    - name: 配置并开始编译
-      run: |
-        cd sdk
-        make defconfig
-        echo "CONFIG_PACKAGE_luci-app-lan-wake=m" >> .config
-        make defconfig
-        make package/LAN-Wake/compile V=s
+      - name: 配置并编译 APK
+        run: |
+          cd sdk
+          # 初始化默认配置
+          make defconfig
+          # 单独编译目标插件
+          make package/luci-app-lan-wake/compile V=s
 
-    - name: 提取编译结果
-      uses: actions/upload-artifact@v4
-      with:
-        name: LAN-Wake-APK-Package
-        path: sdk/bin/packages/**/*.apk
+      - name: 收集 APK 文件
+        run: |
+          mkdir -p ./artifact
+          # 查找生成的 apk 文件
+          find sdk/bin/packages/ -name "luci-app-lan-wake*.apk" -exec cp {} ./artifact/ \;
+
+      - name: 上传 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: luci-app-lan-wake-ipq60xx
+          path: ./artifact/*.apk
