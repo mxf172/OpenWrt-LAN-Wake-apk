@@ -24,14 +24,22 @@ jobs:
           # 自动获取解压出来的实际目录名，并重命名为 sdk
           # 这样即使目录名发生微小变化，脚本也不会报错
           REAL_NAME=$(ls -d openwrt-sdk-*/ | head -n 1 | cut -f1 -d'/')
+          
           mv "$REAL_NAME" sdk
-      - name: 拉取 LAN-Wake 源码
+      - name: 拉取并安装 LAN-Wake 源码
         run: |
           cd sdk
-          # 添加自定义源
+          # 1. 确保 feed 定义正确
           echo "src-git lanwake https://github.com/adminchenyu/LAN-Wake.git" >> feeds.conf.default
+          
+          # 2. 更新 feed 索引
           ./scripts/feeds update lanwake
-          ./scripts/feeds install -a -p lanwake
+          
+          # 3. 安装插件 (这会将源码链接到 package/feeds/lanwake/ 目录下)
+          ./scripts/feeds install -p lanwake -a
+          
+          # 4. 关键：重新生成构建规则 (这一步修复 No rule to make target 错误)
+          make defconfig
 
       - name: 配置并编译 APK
         run: |
