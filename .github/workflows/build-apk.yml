@@ -26,29 +26,26 @@ jobs:
           REAL_NAME=$(ls -d openwrt-sdk-*/ | head -n 1 | cut -f1 -d'/')
           
           mv "$REAL_NAME" sdk
-      - name: 拉取并安装 LAN-Wake 源码
+          
+      - name: 手动导入 LAN-Wake 源码
         run: |
-          cd sdk
-          # 1. 确保 feed 定义正确
-          echo "src-git lanwake https://github.com/adminchenyu/LAN-Wake.git" >> feeds.conf.default
-          
-          # 2. 更新 feed 索引
-          ./scripts/feeds update lanwake
-          
-          # 3. 安装插件 (这会将源码链接到 package/feeds/lanwake/ 目录下)
-          ./scripts/feeds install -p lanwake -a
-          
-          # 4. 关键：重新生成构建规则 (这一步修复 No rule to make target 错误)
-          make defconfig
+          # 直接进入 SDK 的 package 目录，将插件源码克隆到这里
+          # 这样编译系统会自动将其识别为本地包，无需配置 feeds
+          cd sdk/package
+          git clone https://github.com/adminchenyu/LAN-Wake.git luci-app-lan-wake
 
       - name: 配置并编译 APK
         run: |
           cd sdk
-          # 初始化默认配置
+          # 生成配置文件
           make defconfig
-          # 单独编译目标插件
+          
+          # 检查插件是否被正确识别 (调试用，如果报错请看日志)
+          ls -l package/luci-app-lan-wake/Makefile
+          
+          # 直接执行编译目标 (现在路径是 package/luci-app-lan-wake)
           make package/luci-app-lan-wake/compile V=s
-
+          
       - name: 收集 APK 文件
         run: |
           mkdir -p ./artifact
